@@ -576,44 +576,66 @@ class HolidaysAllocation(models.Model):
     # ORM Overrides methods
     ####################################################
 
+    # def onchange(self, values, field_names, fields_spec):
+    #     # Try to force the leave_type display_name when creating new records
+    #     # This is called right after pressing create and returns the display_name for
+    #     # most fields in the view.
+    #     if values and 'employee_id' in fields_spec and 'employee_id' not in self._context:
+    #         employee_id = get_employee_from_context(values, self._context, self.env.user.employee_id.id)
+    #         self = self.with_context(employee_id=employee_id)
+    #     return super().onchange(values, field_names, fields_spec)
+
     def onchange(self, values, field_names, fields_spec):
-        # Try to force the leave_type display_name when creating new records
-        # This is called right after pressing create and returns the display_name for
-        # most fields in the view.
+        # Store the current name value to restore it later if needed
+        current_name = self.name
+
+        # Perform the original onchange logic
         if values and 'employee_id' in fields_spec and 'employee_id' not in self._context:
             employee_id = get_employee_from_context(values, self._context, self.env.user.employee_id.id)
             self = self.with_context(employee_id=employee_id)
-        return super().onchange(values, field_names, fields_spec)
 
-    @api.depends(
-        'holiday_type', 'mode_company_id', 'department_id',
-        'category_id', 'employee_id', 'holiday_status_id',
-        'type_request_unit', 'number_of_days',
-    )
-    def _compute_display_name(self):
-        for allocation in self:
-            if allocation.holiday_type == 'company':
-                target = allocation.mode_company_id.name
-            elif allocation.holiday_type == 'department':
-                target = allocation.department_id.name
-            elif allocation.holiday_type == 'category':
-                target = allocation.category_id.name
-            elif allocation.employee_id:
-                target = allocation.employee_id.name
-            elif len(allocation.employee_ids) <= 3:
-                target = ', '.join(allocation.employee_ids.sudo().mapped('name'))
-            else:
-                target = _('%(first)s, %(second)s and %(amount)s others',
-                    first=allocation.employee_ids[0].sudo().name,
-                    second=allocation.employee_ids[1].sudo().name,
-                    amount=len(allocation.employee_ids) - 2)
+        result = super().onchange(values, field_names, fields_spec)
 
-            allocation.display_name = _("Allocation of %s: %.2f %s to %s",
-                allocation.holiday_status_id.sudo().name,
-                allocation.number_of_hours_display if allocation.type_request_unit == 'hour' else allocation.number_of_days,
-                _('hours') if allocation.type_request_unit == 'hour' else _('days'),
-                target,
-            )
+        # Restore the name value if it was reset
+        if current_name and not self.name:
+            self.name = current_name
+
+        return result
+
+    # @api.depends(
+    #     'holiday_type', 'mode_company_id', 'department_id',
+    #     'category_id', 'employee_id', 'holiday_status_id',
+    #     'type_request_unit', 'number_of_days',
+    # )
+    # def _compute_display_name(self, name=None):
+    #     if self.name:
+    #         target = self.name        
+    #     for allocation in self:
+    #         if self.name:
+    #             target = self.name  
+    #         else:
+    #             if allocation.holiday_type == 'company':
+    #                 target = allocation.mode_company_id.name
+    #             elif allocation.holiday_type == 'department':
+    #                 target = allocation.department_id.name
+    #             elif allocation.holiday_type == 'category':
+    #                 target = allocation.category_id.name
+    #             elif allocation.employee_id:
+    #                 target = allocation.employee_id.name
+    #             elif len(allocation.employee_ids) <= 3:
+    #                 target = ', '.join(allocation.employee_ids.sudo().mapped('name'))
+    #             else:
+    #                 target = _('%(first)s, %(second)s and %(amount)s others',
+    #                     first=allocation.employee_ids[0].sudo().name,
+    #                     second=allocation.employee_ids[1].sudo().name,
+    #                     amount=len(allocation.employee_ids) - 2)
+                    
+    #             allocation.display_name = _("Allocation of %s: %.2f %s to %s",
+    #                 allocation.holiday_status_id.sudo().name,
+    #                 allocation.number_of_hours_display if allocation.type_request_unit == 'hour' else allocation.number_of_days,
+    #                 _('hours') if allocation.type_request_unit == 'hour' else _('days'),
+    #                 target,
+    #             )
 
     def _add_lastcalls(self):
         for allocation in self:
