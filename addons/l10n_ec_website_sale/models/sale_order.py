@@ -18,6 +18,10 @@ class SaleOrder(models.Model):
         """
         moves = super()._create_invoices(grouped=grouped, final=final, date=date)
         for move in moves:
+            lines_to_remove = move.invoice_line_ids.filtered(lambda l: l.price_unit == 0 and not l.is_downpayment)
+            if lines_to_remove:
+                _logger.info(f"Removing extra invoice lines with zero value: {lines_to_remove}")
+                move.invoice_line_ids -= lines_to_remove
             if move.transaction_ids:
                 sri_payment_methods = move.transaction_ids.mapped('payment_method_id.l10n_ec_sri_payment_id')
                 if len(sri_payment_methods) == 1:
